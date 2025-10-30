@@ -155,7 +155,7 @@ const Clients = () => {
                         <td>{client.phone || '—'}</td>
                         <td>{client.document}</td>
                         <td>{client.address || '—'}</td>
-                        <td>
+                        <td >
                           <button
                             className="btn btn-sm btn-outline-primary me-2"
                             onClick={() => openModal(client)}

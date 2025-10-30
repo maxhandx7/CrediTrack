@@ -26,7 +26,7 @@ const Dashboard = () => {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="h3 mb-0">Dashboard</h2>
+        <h2 className="h3 mb-0"></h2>
         <button className="btn btn-primary">
           <i className="fas fa-plus me-2"></i>
           Nuevo Préstamo

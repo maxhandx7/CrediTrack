@@ -12,7 +12,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\User::factory(10)->create();
 
         \App\Models\User::factory()->create([
             'name' => 'Alan Test',
@@ -22,7 +21,8 @@ class DatabaseSeeder extends Seeder
             'address' => '123 Test St, Test City',
         ]);
 
-        \App\Models\Client::factory(50)->create();
+        \App\Models\User::factory(10)->create();
+
 
         \App\Models\Client::factory()->create([
             'user_id' => 1,
@@ -33,5 +33,9 @@ class DatabaseSeeder extends Seeder
             'address' => '456 Example Ave, Sample Town',
             'notes' => 'Cliente importante',
         ]);
+
+        \App\Models\Client::factory(50)->create();
+
+        
     }
 }

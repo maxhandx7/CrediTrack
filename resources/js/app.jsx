@@ -12,6 +12,7 @@ import Calendar from './pages/Calendar'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Prueba from './pages/Prueba'
+import LoginClient from './pages/LoginClient'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="prueba" element={<Prueba />} />
+        <Route path="/login-client" element={<LoginClient />} />
 
         {/* 🔒 Rutas protegidas */}
         <Route element={<PrivateRoute />}>

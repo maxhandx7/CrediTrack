@@ -43,9 +43,13 @@ class UserAuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
-            /* throw ValidationException::withMessages(['email' => ['Credenciales incorrectas.'], 401]); */
             return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
+
+        if ( $user->status === 'inactive') {
+            return response()->json(['message' => 'Usuario inactivo. Contacta al administrador.'], 403);
+        }
+
         $user->tokens()->delete();
         $token = $user->createToken('user_token')->plainTextToken;
 
