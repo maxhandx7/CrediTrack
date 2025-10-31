@@ -43,6 +43,8 @@ class LoanController extends Controller
             'notes' => $request->notes,
         ]);
 
+        $this->generateLoanSchedule($loan);
+
         return response()->json(['message' => 'Préstamo registrado correctamente', 'loan' => $loan], 201);
     }
 
@@ -68,5 +70,52 @@ class LoanController extends Controller
         $loan = Loan::where('user_id', Auth::id())->findOrFail($id);
         $loan->delete();
         return response()->json(['message' => 'Préstamo eliminado correctamente']);
+    }
+
+
+    private function generateLoanSchedule(Loan $loan)
+    {
+        $start = \Carbon\Carbon::parse($loan->start_date);
+        $end = \Carbon\Carbon::parse($loan->due_date);
+        $totalDays = $start->diffInDays($end);
+        $schedules = [];
+
+        switch ($loan->payment_frequency) {
+            case 'diaria':
+                $interval = 1;
+                break;
+            case 'semanal':
+                $interval = 7;
+                break;
+            case 'quincenal':
+                $interval = 15;
+                break;
+            case 'mensual':
+            default:
+                $interval = 30;
+                break;
+        }
+
+        $dates = [];
+        $date = $start->copy();
+        while ($date->lte($end)) {
+            $dates[] = $date->copy();
+            $date->addDays($interval);
+        }
+
+        $amountPerInstallment = round($loan->amount / count($dates), 2);
+
+        foreach ($dates as $dueDate) {
+            $schedules[] = [
+                'loan_id' => $loan->id,
+                'scheduled_date' => $dueDate->format('Y-m-d'),
+                'amount_due' => $amountPerInstallment,
+                'status' => 'pendiente',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        \App\Models\LoanSchedule::insert($schedules);
     }
 }

@@ -26,6 +26,6 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('clients', \App\Http\Controllers\ClientController::class);
         Route::apiResource('loans', LoanController::class);
-        Route::apiResource('payments', PaymentController::class)->only(['store', 'destroy']);
+        Route::apiResource('payments', PaymentController::class);
         Route::apiResource('schedules', LoanScheduleController::class);
     });

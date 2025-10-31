@@ -2,10 +2,10 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
-  withCredentials: true, // importante para Sanctum si usas cookies
+  withCredentials: true, 
 });
 
-// 🔐 Interceptor para agregar el token automáticamente
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -14,7 +14,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 🧩 Endpoints de autenticación
+
 export const login = async (credentials, type = 'user') => {
   const endpoint = type === 'client' ? '/auth/client/login' : '/auth/user/login';
   return api.post(endpoint, credentials);
@@ -25,12 +25,16 @@ export const register = async (userData, type = 'user') => {
   return api.post(endpoint, userData);
 };
 
-// 📋 Endpoints protegidos (requieren token)
+
 export const getClients = async () => api.get('/clients');
 export const getLoans = async () => api.get('/loans');
 export const getPayments = async () => api.get('/payments');
+export const getSchedules = async () => api.get('/schedules');
 
-// 🧨 Manejo global de errores 401 (token inválido)
+
+
+
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -38,7 +42,7 @@ api.interceptors.response.use(
       console.warn('⚠️ Token expirado o sesión inválida');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/'; // redirige al login automáticamente
+      window.location.href = '/'; 
     }
     return Promise.reject(error);
   }

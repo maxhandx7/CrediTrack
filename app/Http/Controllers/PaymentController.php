@@ -9,6 +9,16 @@ use Illuminate\Support\Facades\Auth;
 
 class PaymentController extends Controller
 {
+    public function index()
+{
+    $payments = Payment::where('user_id', Auth::id())
+        ->with('loan.client')
+        ->latest()
+        ->get();
+
+    return response()->json($payments);
+}
+
     public function store(Request $request)
     {
         $request->validate([

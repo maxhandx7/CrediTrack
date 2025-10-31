@@ -12,5 +12,17 @@ export default defineConfig({
             refresh: true,
         }),
         react(),
+
     ],
+    server: {
+        proxy: {
+            '/api': {
+                target: 'http://localhost:8000',
+                changeOrigin: true,
+            },
+        },
+        historyApiFallback: true,
+    }
 });
+
+
