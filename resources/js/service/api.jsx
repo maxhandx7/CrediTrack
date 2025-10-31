@@ -30,6 +30,13 @@ export const getClients = async () => api.get('/clients');
 export const getLoans = async () => api.get('/loans');
 export const getPayments = async () => api.get('/payments');
 export const getSchedules = async () => api.get('/schedules');
+export const getAnalytics = async () => api.get('/analytics/export'); 
+export const getAnalyticsExport = async () => api.get('/analytics/export', { responseType: 'blob' });
+export const getLoanById = async (id) => api.get(`/loans/${id}`);
+export const updateSchedule = (id, data) => {
+  return api.put(`/schedules/${id}`, data);
+};
+
 
 
 

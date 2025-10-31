@@ -28,4 +28,5 @@ Route::prefix('auth')->group(function () {
         Route::apiResource('loans', LoanController::class);
         Route::apiResource('payments', PaymentController::class);
         Route::apiResource('schedules', LoanScheduleController::class);
+        Route::get('analytics/export', [\App\Http\Controllers\AnalyticsController::class, 'export']);
     });

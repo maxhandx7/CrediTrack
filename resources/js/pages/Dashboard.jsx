@@ -33,15 +33,17 @@ const Dashboard = () => {
         setReminders(schedules.slice(0, 5));
 
         // 📊 Cálculos de estadísticas
-        const totalPrestado = loans.reduce((sum, l) => sum + l.amount, 0);
+        const totalPrestado = loans.reduce((sum, l) => sum + parseFloat(l.amount || 0), 0);
         const totalRecuperado = payments.reduce(
-          (sum, p) => sum + (p.amount || 0),
+          (sum, p) => sum + parseFloat(p.amount || 0),
           0
         );
+
         const interesGenerado = loans.reduce(
-          (sum, l) => sum + (l.interest_rate || 0),
+          (sum, l) => sum + (parseFloat(l.amount || 0) * parseFloat(l.interest_rate || 0) / 100),
           0
         );
+
 
         const prestamosActivos = loans.filter(
           (l) => l.status === "activo"
@@ -53,8 +55,8 @@ const Dashboard = () => {
 
         const rentabilidad =
           totalPrestado > 0
-            ? ((interesGenerado / totalPrestado) * 100) + "%"
-            : "0%";
+            ? `${((interesGenerado / totalPrestado) * 100).toFixed(2)}%`
+            : "0.00%";
 
         // 🧾 Últimos préstamos
         setStats({
@@ -201,7 +203,7 @@ const Dashboard = () => {
                       <small className="text-muted">
                         {new Date(r.scheduled_date).toLocaleDateString()}
                       </small>
-                      <p className="mb-1">{r.amount_due}</p>
+                      <p className="mb-1">{r.amount_due}</p>  <small className="text-muted">{r.status}</small>
                     </div>
                   ))}
                 </div>

@@ -53,7 +53,7 @@ class UserAuthController extends Controller
         $user->tokens()->delete();
         $token = $user->createToken('user_token')->plainTextToken;
 
-        return response()->json(['token' => $token, 'user' => $user]);
+        return response()->json(['token' => $token, 'user' => $user]);  
     }
 
     public function profile(Request $request)

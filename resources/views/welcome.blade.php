@@ -61,7 +61,6 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        /* Imagen de fondo desenfocada */
         .loading-container::before {
             content: "";
             position: absolute;
@@ -70,8 +69,7 @@
             filter: blur(8px) brightness(0.6);
             z-index: 0;
         }
-
-        /* Capa translúcida encima para el degradado */
+        
         .loading-container::after {
             content: "";
             position: absolute;
