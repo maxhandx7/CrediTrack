@@ -9,7 +9,7 @@ const TopNavbar = () => {
       <div className="container-fluid">
         <div className="d-flex justify-content-between w-100">
           <div className="d-flex align-items-center">
-            <h5 className="mb-0 text-dark">Panel de Control</h5>
+            <h5 className="mb-0 text-dark"> {user?.email}</h5>
           </div>
           
           <div className="d-flex align-items-center">

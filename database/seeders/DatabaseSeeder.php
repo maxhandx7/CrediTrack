@@ -18,7 +18,8 @@ class DatabaseSeeder extends Seeder
             'email' => 'Alancarabali@gmail.com',
             'password' => bcrypt('17964290'),
             'phone' => '1234567890',
-            'address' => '123 Test St, Test City',
+            'address' => '123 Test St, Test City',  
+            'role' => 'admin',
         ]);
 
         \App\Models\User::factory(10)->create();

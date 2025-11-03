@@ -56,10 +56,10 @@ class AnalyticsController extends Controller
         // Resumen de intereses generados (simple y compuesto)
         $interestSummary = Loan::where('user_id', $userId)
             ->get()
-            ->map(function($loan) {
+            ->map(function ($loan) {
                 $rate = $loan->interest_rate / 100;
                 $principal = $loan->amount;
-                $periods = match($loan->payment_frequency) {
+                $periods = match ($loan->payment_frequency) {
                     'diaria' => now()->diffInDays($loan->due_date),
                     'semanal' => ceil(now()->diffInWeeks($loan->due_date)),
                     'quincenal' => ceil(now()->diffInDays($loan->due_date) / 15),
@@ -81,6 +81,20 @@ class AnalyticsController extends Controller
                 ];
             });
 
+        $loans = Loan::where('user_id', $userId)->get();
+
+        $l = 0;
+        $schedulesCount = 0;
+
+        foreach ($loans as $key => $loan) {
+            $loan->schedulesCount = LoanSchedule::where('loan_id', $loan->id)->get();
+            $schedulesCount = $loan->schedulesCount->count();
+            $totalLoan = $loan->amount + ($loan->amount * $loan->interest_rate / 100) * $schedulesCount;
+            $l += $totalLoan;
+        }
+
+
+
         // Armar el reporte completo
         $report = [
             'totals' => [
@@ -92,10 +106,13 @@ class AnalyticsController extends Controller
                 'total_paid' => $totalPaid,
                 'total_remaining' => $totalRemaining,
                 'overdue_payments' => $overduePayments,
+                'schedules_count' => $schedulesCount,
             ],
             'top_clients' => $topClients,
             'payment_frequency_summary' => $paymentFrequencySummary,
             'interest_summary' => $interestSummary,
+            'loans' => $loans,
+            'total_ganado_interes' => $l,
         ];
 
         return response()->json($report);

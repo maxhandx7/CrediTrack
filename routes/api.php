@@ -1,9 +1,10 @@
 <?php
 
 
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\Auth\ClientAuthController;
 use App\Http\Controllers\Auth\UserAuthController;
-use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanScheduleController;
 use App\Http\Controllers\PaymentController;
@@ -24,9 +25,9 @@ Route::prefix('auth')->group(function () {
 });
 
     Route::middleware('auth:sanctum')->group(function () {
-        Route::apiResource('clients', \App\Http\Controllers\ClientController::class);
+        Route::apiResource('clients', ClientController::class);
         Route::apiResource('loans', LoanController::class);
         Route::apiResource('payments', PaymentController::class);
         Route::apiResource('schedules', LoanScheduleController::class);
-        Route::get('analytics/export', [\App\Http\Controllers\AnalyticsController::class, 'export']);
+        Route::get('analytics/export', [AnalyticsController::class, 'export']);
     });

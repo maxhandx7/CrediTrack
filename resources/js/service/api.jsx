@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
-  withCredentials: true, 
+  withCredentials: true,
 });
 
 
@@ -30,11 +30,14 @@ export const getClients = async () => api.get('/clients');
 export const getLoans = async () => api.get('/loans');
 export const getPayments = async () => api.get('/payments');
 export const getSchedules = async () => api.get('/schedules');
-export const getAnalytics = async () => api.get('/analytics/export'); 
+export const getAnalytics = async () => api.get('/analytics/export');
 export const getAnalyticsExport = async () => api.get('/analytics/export', { responseType: 'blob' });
 export const getLoanById = async (id) => api.get(`/loans/${id}`);
 export const updateSchedule = (id, data) => {
   return api.put(`/schedules/${id}`, data);
+};
+export const createPayment = (data) => {
+  return api.post('/schedules', data);
 };
 
 
@@ -49,7 +52,7 @@ api.interceptors.response.use(
       console.warn('⚠️ Token expirado o sesión inválida');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/'; 
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }

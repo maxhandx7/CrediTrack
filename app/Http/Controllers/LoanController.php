@@ -11,19 +11,20 @@ class LoanController extends Controller
 {
 
     public function index()
-{
-    $loans = Loan::where('user_id', Auth::id())
-        ->with(['client'])
-        ->latest()
-        ->get();
+    {
+        $loans = Loan::where('user_id', Auth::id())
+            ->with(['client'])
+            ->latest()
+            ->get();
 
-    foreach ($loans as $loan) {
-        $loan->payments = Payment::where('loan_id', $loan->id)->get();
-        $loan->schedules = LoanSchedule::where('loan_id', $loan->id)->get();
+        foreach ($loans as $loan) {
+            $loan->payments = Payment::where('loan_id', $loan->id)->get();
+            $loan->schedules = LoanSchedule::where('loan_id', $loan->id)->get();
+            $loan->quotasCount = $loan->schedules->count();
+        }
         
+        return response()->json($loans);
     }
-    return response()->json($loans);
-}
 
     public function store(Request $request)
     {
@@ -63,6 +64,8 @@ class LoanController extends Controller
             ->findOrFail($id);
         $payments = Payment::where('loan_id', $loan->id)->get();
         $loan->payments = $payments;
+        $schedules = LoanSchedule::where('loan_id', $loan->id)->get();
+        $loan->schedulesCount = $schedules->count();
         return response()->json($loan);
     }
 
@@ -90,23 +93,25 @@ class LoanController extends Controller
 
         switch ($loan->payment_frequency) {
             case 'diaria':
-                $interval = 1;
                 $periods = $start->diffInDays($end);
+                $unit = 'diaria';
                 break;
             case 'semanal':
-                $interval = 7;
                 $periods = ceil($start->diffInWeeks($end));
+                $unit = 'semanal';
                 break;
             case 'quincenal':
-                $interval = 15;
                 $periods = ceil($start->diffInDays($end) / 15);
+                $unit = 'quincenal';
                 break;
             case 'mensual':
             default:
-                $interval = 30;
                 $periods = ceil($start->diffInMonths($end));
+                $unit = 'mensual';
                 break;
         }
+
+        $periods = max((int) $periods, 1);
 
         $rate = $loan->interest_rate / 100;
         $principal = $loan->amount;
@@ -119,23 +124,51 @@ class LoanController extends Controller
             $totalInterest = $totalToPay - $principal;
         }
 
+        // Generar fechas con la misma cantidad de periodos calculados
         $dates = [];
-        $date = $start->copy();
-        while ($date->lte($end)) {
-            $dates[] = $date->copy();
-            $date->addDays($interval);
+        for ($i = 0; $i < $periods; $i++) {
+            $d = $start->copy();
+            switch ($unit) {
+                case 'diaria':
+                    $d->addDays($i);
+                    break;
+                case 'semanal':
+                    // addWeeks acepta número de semanas
+                    $d->addWeeks($i);
+                    break;
+                case 'quincenal':
+                    $d->addDays(15 * $i);
+                    break;
+                case 'mensual':
+                default:
+                    $d->addMonths($i);
+                    break;
+            }
+            // No pases la fecha final: si supera due_date, ajusta a due_date
+            if ($d->gt($end)) {
+                $d = $end->copy();
+            }
+            $dates[] = $d;
         }
 
-        $numPayments = max(count($dates), 1);
+        $numPayments = count($dates);
 
-        $amountPerInstallment = round($totalToPay / $numPayments, 2);
+        // Distribuir monto en cuotas y ajustar la última por redondeo
+        $baseAmount = floor(($totalToPay / $numPayments) * 100) / 100; // truncar a 2 decimales
+        $sumaBase = $baseAmount * $numPayments;
+        $remainder = round($totalToPay - $sumaBase, 2); // diferencia por redondeo
 
         $schedules = [];
-        foreach ($dates as $dueDate) {
+        foreach ($dates as $idx => $dueDate) {
+            $amountDue = $baseAmount;
+            // suma el resto a la última cuota
+            if ($idx === $numPayments - 1) {
+                $amountDue = $amountDue + $remainder;
+            }
             $schedules[] = [
                 'loan_id' => $loan->id,
                 'scheduled_date' => $dueDate->format('Y-m-d'),
-                'amount_due' => $amountPerInstallment,
+                'amount_due' => $amountDue,
                 'status' => 'pendiente',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -144,5 +177,6 @@ class LoanController extends Controller
 
         LoanSchedule::insert($schedules);
     }
+
 
 }

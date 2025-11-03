@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getLoans, getLoanById } from "../service/api";
+import { getLoans, getLoanById, getClients } from "../service/api";
 import api from "../service/api";
 import "bootstrap/dist/css/bootstrap.min.css";
 
@@ -39,7 +39,7 @@ const Loans = () => {
 
   const fetchClients = async () => {
     try {
-      const { data } = await api.get("/clients");
+      const { data } = await getClients();
       setClients(data);
     } catch (error) {
       console.error("Error al cargar clientes:", error);
@@ -101,6 +101,8 @@ const Loans = () => {
     return { totalCuotas, pagadas, saldoPagado, saldoRestante };
   };
 
+
+
   if (loading)
     return (
       <div className="loading-container">
@@ -156,9 +158,8 @@ const Loans = () => {
                         </td>
                         <td>
                           <span
-                            className={`badge ${
-                              loan.status === "activo" ? "bg-success" : "bg-secondary"
-                            }`}
+                            className={`badge ${loan.status === "activo" ? "bg-success" : "bg-secondary"
+                              }`}
                           >
                             {loan.status}
                           </span>
@@ -210,6 +211,8 @@ const Loans = () => {
                   onClick={() => setShowDetail(false)}
                 ></button>
               </div>
+            
+
               <div className="modal-body">
                 <div className="row">
                   <div className="col-md-6">
@@ -231,11 +234,31 @@ const Loans = () => {
                       <strong>Interés:</strong> {selectedLoan.interest_rate}% (
                       {selectedLoan.interest_type}) <br />
                       <strong>Frecuencia:</strong> {selectedLoan.payment_frequency} <br />
+
+                      <strong>Interes generado</strong> {" "}$
+                      {(
+                        parseFloat(selectedLoan.amount) * (parseFloat(selectedLoan.interest_rate) / 100) * (selectedLoan.schedulesCount )
+                      ).toLocaleString("es-CO")}
+                      <br />
+                      <strong>Son {(selectedLoan.schedulesCount )}</strong> pagos de {" "}$
+                      {(
+                        (parseFloat(selectedLoan.amount) +
+                          parseFloat(selectedLoan.amount) * (parseFloat(selectedLoan.interest_rate) / 100) * (selectedLoan.schedulesCount )) /
+                        (selectedLoan.schedulesCount )
+                      ).toLocaleString("es-CO")}
+                      <br />
+                      <strong>Total a pagar:</strong>{" "}
+                      $
+                      {(
+                        parseFloat(selectedLoan.amount) +
+                        parseFloat(selectedLoan.amount) * (parseFloat(selectedLoan.interest_rate) / 100) * (selectedLoan.schedulesCount )
+                      ).toLocaleString("es-CO")}
+                      <br />
+                      
                       <strong>Estado:</strong>{" "}
                       <span
-                        className={`badge ${
-                          selectedLoan.status === "activo" ? "bg-success" : "bg-secondary"
-                        }`}
+                        className={`badge ${selectedLoan.status === "activo" ? "bg-success" : "bg-secondary"
+                          }`}
                       >
                         {selectedLoan.status}
                       </span>

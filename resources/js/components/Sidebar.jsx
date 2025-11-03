@@ -17,7 +17,7 @@ const Sidebar = () => {
     <div className="col-lg-2 col-md-3 bg-dark text-white vh-100 position-fixed">
       <div className="sidebar-sticky pt-3">
         <div className="text-center mb-4">
-          <h4 className="text-warning">
+          <h4 className="text-primary">
             <i className="fas fa-chart-line me-2"></i>
             CrediTrack
           </h4>

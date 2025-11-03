@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Calendar as BigCalendar, momentLocalizer } from "react-big-calendar";
-import { getSchedules, updateSchedule } from "../service/api";
+import { getSchedules, updateSchedule, createPayment } from "../service/api";
 import { Modal, Button, Form } from "react-bootstrap";
 import { parseISO } from "date-fns";
 import axios from "axios";
@@ -53,7 +53,7 @@ const Calendar = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/schedules", form);
+      await createPayment(form);
       setShowModal(false);
       fetchSchedules();
     } catch (error) {
@@ -226,12 +226,12 @@ const Calendar = () => {
                 <strong>Estado:</strong>{" "}
                 <span
                   className={`badge ${editForm.status === "pagado"
-                      ? "bg-success"
-                      : editForm.status === "pendiente"
-                        ? "bg-warning text-dark"
-                        : editForm.status === "atrasado"
-                          ? "bg-danger"
-                          : "bg-secondary"
+                    ? "bg-success"
+                    : editForm.status === "pendiente"
+                      ? "bg-warning text-dark"
+                      : editForm.status === "atrasado"
+                        ? "bg-danger"
+                        : "bg-secondary"
                     }`}
                 >
                   {editForm.status || "Desconocido"}
