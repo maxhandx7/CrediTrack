@@ -91,11 +91,11 @@ const Payments = () => {
   );
 
   if (loading) return (
-            <div className="text-center py-4">
-              <div className="spinner-border text-primary"></div>
-              <p className="mt-2">Cargando pagos...</p>
-            </div>
-          );
+    <div className="text-center py-4">
+      <div className="spinner-border text-primary"></div>
+      <p className="mt-2">Cargando pagos...</p>
+    </div>
+  );
 
   return (
     <div>
@@ -198,34 +198,35 @@ const Payments = () => {
                     <select
                       className="form-select"
                       value={formData.schedule_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, schedule_id: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const selectedSchedule = filteredSchedules.find(s => s.id.toString() === selectedId);
+
+                        if (selectedSchedule) {
+                          // Formateamos la fecha a YYYY-MM-DD para el input type="date"
+                          const dateForInput = selectedSchedule.scheduled_date.slice(0, 10);
+
+                          setFormData({
+                            ...formData,
+                            schedule_id: selectedId,
+                            amount: selectedSchedule.amount_due,
+                            date: dateForInput 
+                          });
+                        } else {
+                          setFormData({ ...formData, schedule_id: "", amount: "", date: "" });
+                        }
+                      }}
                       required
                       disabled={!formData.loan_id}
                     >
                       <option value="">Seleccione...</option>
                       {filteredSchedules.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {new Date(s.scheduled_date).toLocaleDateString()} - $
+                          {s.scheduled_date.split('-').reverse().join('/')} - $
                           {s.amount_due.toLocaleString()}
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  {/* Monto */}
-                  <div className="mb-3">
-                    <label className="form-label">Monto</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={formData.amount}
-                      onChange={(e) =>
-                        setFormData({ ...formData, amount: e.target.value })
-                      }
-                      required
-                    />
                   </div>
 
                   {/* Fecha */}
@@ -237,6 +238,20 @@ const Payments = () => {
                       value={formData.date}
                       onChange={(e) =>
                         setFormData({ ...formData, date: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  {/* Monto */}
+                  <div className="mb-3">
+                    <label className="form-label">Monto</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={formData.amount}
+                      onChange={(e) =>
+                        setFormData({ ...formData, amount: e.target.value })
                       }
                       required
                     />

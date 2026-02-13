@@ -234,9 +234,22 @@ const Calendar = () => {
                         : "bg-secondary"
                     }`}
                 >
+
                   {editForm.status || "Desconocido"}
                 </span>
               </p>
+
+              {(editForm.status === "pendiente" || editForm.status === "atrasado") && (
+                <div className="mt-3">
+                  <a
+                    href="/payments"
+                    className="btn btn-sm btn-info d-md-block"
+                  >
+                    <i className="fa fa-credit-card"></i>
+                    Pagar cuota
+                  </a>
+                </div>
+              )}
             </div>
 
             <Form.Group className="mb-3">
