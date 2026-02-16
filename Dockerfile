@@ -40,7 +40,7 @@ RUN rm -f /etc/nginx/sites-enabled/default
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
-ENV WEB_DOCUMENT_ROOT=/app/public
+
 
 EXPOSE 80
 
