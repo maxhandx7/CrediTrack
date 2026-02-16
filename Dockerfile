@@ -35,8 +35,11 @@ RUN composer install --no-dev --optimize-autoloader
 
 RUN chown -R www-data:www-data storage bootstrap/cache
 
+RUN rm -f /etc/nginx/sites-enabled/default
+
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-CMD service nginx start && php-fpm
+CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
+
