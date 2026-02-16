@@ -8,6 +8,8 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+RUN ls -la public/build
+
 
 FROM php:8.2-fpm
 
@@ -33,7 +35,10 @@ COPY --from=node_builder /app/public/build ./public/build
 
 RUN composer install --no-dev --optimize-autoloader
 
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN mkdir -p storage/logs \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
 
 RUN rm -f /etc/nginx/sites-enabled/default
 
@@ -42,4 +47,7 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 
 CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
+
+USER www-data
+
 
