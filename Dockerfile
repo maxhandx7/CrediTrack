@@ -25,10 +25,11 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+WORKDIR /var/www
 
 COPY . .
 
-COPY --from=nodebuilder /app/public /app/public
+COPY --from=node_builder /app/public/build ./public/build
 
 RUN composer install --no-dev --optimize-autoloader
 
