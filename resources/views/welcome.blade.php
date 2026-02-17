@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Te mantiene al dia con tus prestamos">
-    <meta name="keywords" content="gestion de prestamos, pagos, recordatorios, analitica">
+    <meta name="keywords" content="Gestion de prestamos, pagos, recordatorios, analitica">
     <meta name="author" content="Alan Carabali">
 
     <title>Sistema de Gestión de Prestamos | Inicio</title>
@@ -20,8 +20,9 @@
 
     <!-- Open Graph Meta Tags -->
     <meta property="og:title" content="Sistema de Gestión de  Prestamos">
-    <meta property="og:description" content="Aplicación telemática para gestión de estudiantes y notas">
+    <meta property="og:description" content="Gestion de prestamos, pagos, recordatorios, analitica">
     <meta property="og:type" content="website">
+    <meta property="og:image" content="{{ asset('/images/default.svg') }}">
     <meta property="og:url" content="{{ url()->current() }}">
 
     <!-- Theme Color -->
