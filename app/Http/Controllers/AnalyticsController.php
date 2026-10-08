@@ -2,119 +2,58 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\Client;
-use App\Models\Loan;
+use App\Enums\ScheduleStatus;
 use App\Models\LoanSchedule;
-use App\Models\Payment;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
+/**
+ * Resumen de la cartera. Mantiene las claves que usa el frontend y corrige los
+ * cálculos: antes "pendiente" restaba pagos al capital sin intereses.
+ */
 class AnalyticsController extends Controller
 {
-    /**
-     * Exporta un análisis completo del sistema para el usuario autenticado
-     */
-    public function export()
+    public function export(Request $request)
     {
-        $userId = Auth::id();
+        $user = $request->user();
+        $loans = $user->loans()->with(['client', 'payments', 'schedules'])->get();
 
-        // Total de clientes
-        $totalClients = Client::where('user_id', $userId)->count();
+        $totalAmount = (float) $loans->sum('amount');
+        $totalToCollect = (float) $loans->sum('total_amount');
+        $totalPaid = (float) $loans->sum(fn ($l) => $l->total_paid);
+        $overdue = LoanSchedule::whereIn('loan_id', $loans->pluck('id'))->where('status', ScheduleStatus::Overdue)->get();
 
-        // Total de préstamos
-        $totalLoans = Loan::where('user_id', $userId)->count();
-
-        // Préstamos activos y pagados
-        $activeLoans = Loan::where('user_id', $userId)->where('status', 'activo')->count();
-        $paidLoans = Loan::where('user_id', $userId)->where('status', 'pagado')->count();
-
-        // Total prestado y total pagado
-        $totalAmount = Loan::where('user_id', $userId)->sum('amount');
-        $totalPaid = Payment::where('user_id', $userId)->sum('amount');
-        $totalRemaining = $totalAmount - $totalPaid;
-
-        // Pagos atrasados
-        $overduePayments = LoanSchedule::whereHas('loan', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->where('status', 'atrasado')->count();
-
-        // Clientes más activos (con más préstamos)
-        $topClients = Client::where('user_id', $userId)
-            ->withCount('loans')
-            ->orderByDesc('loans_count')
-            ->take(5)
-            ->get();
-
-        // Resumen de pagos por frecuencia
-        $paymentFrequencySummary = Loan::where('user_id', $userId)
-            ->select('payment_frequency', DB::raw('count(*) as total'))
-            ->groupBy('payment_frequency')
-            ->get();
-
-        // Resumen de intereses generados (simple y compuesto)
-        $interestSummary = Loan::where('user_id', $userId)
-            ->get()
-            ->map(function ($loan) {
-                $rate = $loan->interest_rate / 100;
-                $principal = $loan->amount;
-                $periods = match ($loan->payment_frequency) {
-                    'diaria' => now()->diffInDays($loan->due_date),
-                    'semanal' => ceil(now()->diffInWeeks($loan->due_date)),
-                    'quincenal' => ceil(now()->diffInDays($loan->due_date) / 15),
-                    'mensual' => ceil(now()->diffInMonths($loan->due_date)),
-                    default => 1,
-                };
-
-                if ($loan->interest_type === 'simple') {
-                    $totalInterest = $principal * $rate * $periods;
-                } else {
-                    $totalInterest = $principal * pow(1 + $rate, $periods) - $principal;
-                }
-
-                return [
-                    'loan_id' => $loan->id,
-                    'client' => $loan->client->name ?? 'Cliente desconocido',
-                    'interest_type' => $loan->interest_type,
-                    'interest_amount' => round($totalInterest, 2)
-                ];
-            });
-
-        $loans = Loan::where('user_id', $userId)->get();
-
-        $l = 0;
-        $schedulesCount = 0;
-
-        foreach ($loans as $key => $loan) {
-            $loan->schedulesCount = LoanSchedule::where('loan_id', $loan->id)->get();
-            $schedulesCount = $loan->schedulesCount->count();
-            $totalLoan = $loan->amount + ($loan->amount * $loan->interest_rate / 100) * $schedulesCount;
-            $l += $totalLoan;
-        }
-
-
-
-        // Armar el reporte completo
-        $report = [
-            'totals' => [
-                'clients' => $totalClients,
-                'loans' => $totalLoans,
-                'active_loans' => $activeLoans,
-                'paid_loans' => $paidLoans,
-                'total_amount' => $totalAmount,
-                'total_paid' => $totalPaid,
-                'total_remaining' => $totalRemaining,
-                'overdue_payments' => $overduePayments,
-                'schedules_count' => $schedulesCount,
+        return response()->json([
+            'summary' => [
+                'total_clients' => $user->clients()->count(),
+                'total_loans' => $loans->count(),
+                'active_loans' => $loans->where('status.value', 'activo')->count(),
+                'late_loans' => $loans->where('status.value', 'atrasado')->count(),
+                'paid_loans' => $loans->where('status.value', 'pagado')->count(),
+                'total_amount' => round($totalAmount, 2),
+                'total_to_collect' => round($totalToCollect, 2),
+                'total_paid' => round($totalPaid, 2),
+                'pending_amount' => round(max(0, $totalToCollect - $totalPaid), 2),
+                'expected_interest' => round($totalToCollect - $totalAmount, 2),
+                'overdue_amount' => round((float) $overdue->sum(fn ($s) => $s->amount_pending), 2),
+                'overdue_installments' => $overdue->count(),
             ],
-            'top_clients' => $topClients,
-            'payment_frequency_summary' => $paymentFrequencySummary,
-            'interest_summary' => $interestSummary,
-            'loans' => $loans,
-            'total_ganado_interes' => $l,
-        ];
-
-        return response()->json($report);
+            'payment_frequency_summary' => $loans->groupBy(fn ($l) => $l->payment_frequency->value)
+                ->map(fn ($g, $k) => ['payment_frequency' => $k, 'total' => $g->count()])->values(),
+            'interest_summary' => $loans->map(fn ($l) => [
+                'loan_id' => $l->id,
+                'client' => $l->client?->name,
+                'interest_type' => $l->interest_type->value,
+                'principal' => (float) $l->amount,
+                'interest_amount' => round((float) $l->total_amount - (float) $l->amount, 2),
+            ])->values(),
+            'loans_detail' => $loans->map(fn ($l) => [
+                'loan_id' => $l->id,
+                'client' => $l->client?->name,
+                'status' => $l->status->value,
+                'total_amount' => (float) $l->total_amount,
+                'total_paid' => $l->total_paid,
+                'balance' => $l->balance,
+            ])->values(),
+        ]);
     }
 }

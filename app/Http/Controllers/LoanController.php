@@ -1,182 +1,111 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Loan;
-use App\Models\LoanSchedule;
-use App\Models\Payment;
+use App\Services\LoanLedger;
+use App\Services\ScheduleGenerator;
+use App\Services\Webhooks\WebhookDispatcher;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class LoanController extends Controller
 {
+    private const FINANCIAL_FIELDS = ['amount', 'interest_rate', 'interest_type', 'start_date', 'due_date', 'payment_frequency'];
 
-    public function index()
+    public function __construct(
+        private ScheduleGenerator $generator,
+        private LoanLedger $ledger,
+        private WebhookDispatcher $webhooks,
+    ) {}
+
+    public function index(Request $request)
     {
-        $loans = Loan::where('user_id', Auth::id())
-            ->with(['client'])
-            ->latest()
-            ->get();
+        // Antes: 2 consultas extra POR préstamo. Ahora: 4 en total.
+        $loans = $request->user()->loans()->with(['client', 'payments', 'schedules'])->latest()->get();
+        $loans->each(fn (Loan $loan) => $loan->setAttribute('quotasCount', $loan->schedules->count()));
 
-        foreach ($loans as $loan) {
-            $loan->payments = Payment::where('loan_id', $loan->id)->get();
-            $loan->schedules = LoanSchedule::where('loan_id', $loan->id)->get();
-            $loan->quotasCount = $loan->schedules->count();
-        }
-        
         return response()->json($loans);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'client_id' => 'required|exists:clients,id',
-            'amount' => 'required|numeric|min:1',
-            'interest_rate' => 'required|numeric|min:0',
-            'interest_type' => 'required|in:simple,compuesto',
-            'start_date' => 'required|date',
-            'due_date' => 'required|date|after_or_equal:start_date',
-            'payment_frequency' => 'required|in:diaria,semanal,quincenal,mensual',
-            'notes' => 'nullable|string',
-        ]);
+        $data = $request->validate($this->rules($request));
 
-        $loan = Loan::create([
-            'user_id' => Auth::id(),
-            'client_id' => $request->client_id,
-            'amount' => $request->amount,
-            'interest_rate' => $request->interest_rate,
-            'interest_type' => $request->interest_type,
-            'start_date' => $request->start_date,
-            'due_date' => $request->due_date,
-            'payment_frequency' => $request->payment_frequency,
-            'status' => 'activo',
-            'notes' => $request->notes,
-        ]);
+        $loan = DB::transaction(function () use ($request, $data) {
+            $loan = $request->user()->loans()->create($data + ['status' => 'activo']);
+            $this->generator->generate($loan);
 
-        $this->generateLoanSchedule($loan);
+            return $this->ledger->recalculate($loan);
+        });
 
-        return response()->json(['message' => 'Préstamo registrado correctamente', 'loan' => $loan], 201);
+        $this->webhooks->loanCreated($loan);
+
+        return response()->json(['message' => 'Préstamo registrado correctamente', 'loan' => $loan->load('client')], 201);
     }
 
-    public function show($id)
+    public function show(Request $request, int $id)
     {
-        $loan = Loan::where('user_id', Auth::id())
-            ->with(['client', 'payments'])
-            ->findOrFail($id);
-        $payments = Payment::where('loan_id', $loan->id)->get();
-        $loan->payments = $payments;
-        $schedules = LoanSchedule::where('loan_id', $loan->id)->get();
-        $loan->schedulesCount = $schedules->count();
+        $loan = $request->user()->loans()->with(['client', 'payments', 'schedules'])->findOrFail($id);
+        $loan->setAttribute('schedulesCount', $loan->schedules->count());
+
         return response()->json($loan);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, int $id)
     {
-        $loan = Loan::where('user_id', Auth::id())->findOrFail($id);
+        $loan = $request->user()->loans()->findOrFail($id);
+        $data = $request->validate($this->rules($request, partial: true) + [
+            'status' => 'sometimes|in:activo,cancelado,pagado,atrasado',
+        ]);
 
-        $loan->update($request->only(['amount', 'interest_rate', 'interest_type', 'due_date', 'payment_frequency', 'status', 'notes']));
+        $changesMoney = collect(self::FINANCIAL_FIELDS)
+            ->contains(fn ($f) => array_key_exists($f, $data) && (string) $data[$f] !== (string) $loan->getRawOriginal($f));
 
-        return response()->json(['message' => 'Préstamo actualizado correctamente', 'loan' => $loan]);
+        if ($changesMoney && $loan->payments()->exists()) {
+            return response()->json([
+                'message' => 'Este préstamo ya tiene pagos: no se pueden cambiar monto, tasa, fechas ni frecuencia. Cancélalo y crea uno nuevo.',
+            ], 422);
+        }
+
+        // Solo "cancelado" es una decisión manual; los demás estados los calcula el libro contable.
+        if (isset($data['status']) && $data['status'] !== 'cancelado') {
+            $data['status'] = $loan->status === \App\Enums\LoanStatus::Cancelled ? 'activo' : $loan->status->value;
+        }
+
+        DB::transaction(function () use ($loan, $data, $changesMoney) {
+            $loan->update($data);
+            if ($changesMoney) {
+                $this->generator->generate($loan);
+            }
+            $this->ledger->recalculate($loan);
+        });
+
+        return response()->json(['message' => 'Préstamo actualizado correctamente', 'loan' => $loan->fresh(['client', 'schedules'])]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, int $id)
     {
-        $loan = Loan::where('user_id', Auth::id())->findOrFail($id);
+        $loan = $request->user()->loans()->findOrFail($id);
         $loan->delete();
+        $this->webhooks->loanDeleted($loan);
+
         return response()->json(['message' => 'Préstamo eliminado correctamente']);
     }
 
-
-    private function generateLoanSchedule(Loan $loan)
+    private function rules(Request $request, bool $partial = false): array
     {
-        $start = \Carbon\Carbon::parse($loan->start_date);
-        $end = \Carbon\Carbon::parse($loan->due_date);
+        $r = $partial ? 'sometimes' : 'required';
 
-        switch ($loan->payment_frequency) {
-            case 'diaria':
-                $periods = $start->diffInDays($end);
-                $unit = 'diaria';
-                break;
-            case 'semanal':
-                $periods = ceil($start->diffInWeeks($end));
-                $unit = 'semanal';
-                break;
-            case 'quincenal':
-                $periods = ceil($start->diffInDays($end) / 15);
-                $unit = 'quincenal';
-                break;
-            case 'mensual':
-            default:
-                $periods = ceil($start->diffInMonths($end));
-                $unit = 'mensual';
-                break;
-        }
-
-        $periods = max((int) $periods, 1);
-
-        $rate = $loan->interest_rate / 100;
-        $principal = $loan->amount;
-
-        if ($loan->interest_type === 'simple') {
-            $totalInterest = $principal * $rate * $periods;
-            $totalToPay = $principal + $totalInterest;
-        } else {
-            $totalToPay = $principal * pow((1 + $rate), $periods);
-            $totalInterest = $totalToPay - $principal;
-        }
-
-        // Generar fechas con la misma cantidad de periodos calculados
-        $dates = [];
-        for ($i = 0; $i < $periods; $i++) {
-            $d = $start->copy();
-            switch ($unit) {
-                case 'diaria':
-                    $d->addDays($i);
-                    break;
-                case 'semanal':
-                    // addWeeks acepta número de semanas
-                    $d->addWeeks($i);
-                    break;
-                case 'quincenal':
-                    $d->addDays(15 * $i);
-                    break;
-                case 'mensual':
-                default:
-                    $d->addMonths($i);
-                    break;
-            }
-            // No pases la fecha final: si supera due_date, ajusta a due_date
-            if ($d->gt($end)) {
-                $d = $end->copy();
-            }
-            $dates[] = $d;
-        }
-
-        $numPayments = count($dates);
-
-        // Distribuir monto en cuotas y ajustar la última por redondeo
-        $baseAmount = floor(($totalToPay / $numPayments) * 100) / 100; // truncar a 2 decimales
-        $sumaBase = $baseAmount * $numPayments;
-        $remainder = round($totalToPay - $sumaBase, 2); // diferencia por redondeo
-
-        $schedules = [];
-        foreach ($dates as $idx => $dueDate) {
-            $amountDue = $baseAmount;
-            // suma el resto a la última cuota
-            if ($idx === $numPayments - 1) {
-                $amountDue = $amountDue + $remainder;
-            }
-            $schedules[] = [
-                'loan_id' => $loan->id,
-                'scheduled_date' => $dueDate->format('Y-m-d'),
-                'amount_due' => $amountDue,
-                'status' => 'pendiente',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        }
-
-        LoanSchedule::insert($schedules);
+        return [
+            'client_id' => [$r, 'integer', fn ($attr, $value, $fail) => $request->user()->clients()->whereKey($value)->exists() ?: $fail('El cliente no existe.')],
+            'amount' => "$r|numeric|min:1",
+            'interest_rate' => "$r|numeric|min:0|max:100",
+            'interest_type' => "$r|in:simple,compuesto",
+            'start_date' => "$r|date",
+            'due_date' => "$r|date|after_or_equal:start_date",
+            'payment_frequency' => "$r|in:diaria,semanal,quincenal,mensual",
+            'notes' => 'nullable|string',
+        ];
     }
-
-
 }

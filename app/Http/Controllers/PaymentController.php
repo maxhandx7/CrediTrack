@@ -3,56 +3,74 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
-use App\Models\Loan;
+use App\Notifications\PaymentReceived;
+use App\Services\LoanLedger;
+use App\Services\Webhooks\WebhookDispatcher;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
-    public function index()
-{
-    $payments = Payment::where('user_id', Auth::id())
-        ->with('loan.client')
-        ->latest()
-        ->get();
+    public function __construct(private LoanLedger $ledger, private WebhookDispatcher $webhooks) {}
 
-    return response()->json($payments);
-}
+    public function index(Request $request)
+    {
+        return response()->json($request->user()->payments()->with('loan.client')->latest('date')->latest('id')->get());
+    }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'loan_id' => 'required|exists:loans,id',
+        $data = $request->validate([
+            'loan_id' => 'required|integer',
             'amount' => 'required|numeric|min:1',
-            'date' => 'required|date',
+            'date' => 'required|date|before_or_equal:today',
             'notes' => 'nullable|string',
+            'notify' => 'sometimes|boolean',
         ]);
 
-        $loan = Loan::where('user_id', Auth::id())->findOrFail($request->loan_id);
+        $loan = $request->user()->loans()->findOrFail($data['loan_id']);
 
-        $remaining = max(0, $loan->amount - ($loan->payments()->sum('amount') + $request->amount));
-
-        $payment = Payment::create([
-            'loan_id' => $loan->id,
-            'user_id' => Auth::id(),
-            'amount' => $request->amount,
-            'date' => $request->date,
-            'remaining_balance' => $remaining,
-            'notes' => $request->notes,
-        ]);
-
-        // Si ya se pagó todo, marcar préstamo como "pagado"
-        if ($remaining <= 0) {
-            $loan->update(['status' => 'pagado']);
+        if ($loan->status->value === 'cancelado') {
+            return response()->json(['message' => 'El préstamo está cancelado.'], 422);
+        }
+        if ((float) $data['amount'] > $loan->balance + 0.01) {
+            return response()->json([
+                'message' => 'El pago supera el saldo pendiente ('.number_format($loan->balance, 0, ',', '.').').',
+            ], 422);
         }
 
-        return response()->json(['message' => 'Pago registrado correctamente', 'payment' => $payment]);
+        $payment = DB::transaction(function () use ($request, $loan, $data) {
+            $payment = $loan->payments()->create([
+                'user_id' => $request->user()->id,
+                'amount' => $data['amount'],
+                'date' => $data['date'],
+                'notes' => $data['notes'] ?? null,
+            ]);
+            $this->ledger->recalculate($loan);
+
+            return $payment->fresh();
+        });
+
+        $this->webhooks->paymentCreated($payment);
+
+        if (($data['notify'] ?? true) && $loan->client->routeNotificationForWaha()) {
+            $loan->client->notify(new PaymentReceived($payment));
+        }
+
+        return response()->json(['message' => 'Pago registrado correctamente', 'payment' => $payment, 'loan' => $loan->fresh()]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, int $id)
     {
-        $payment = Payment::where('user_id', Auth::id())->findOrFail($id);
-        $payment->delete();
+        $payment = $request->user()->payments()->findOrFail($id);
+
+        DB::transaction(function () use ($payment) {
+            $payment->delete();
+            $this->ledger->recalculate($payment->loan);
+        });
+
+        $this->webhooks->paymentDeleted($payment);
+
         return response()->json(['message' => 'Pago eliminado correctamente']);
     }
 }

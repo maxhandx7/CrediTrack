@@ -1,0 +1,17 @@
+# WAHA (WhatsApp HTTP API) para Coolify: crea un recurso "Docker Compose" con esto.
+# Luego abre http://<tu-dominio-waha>/dashboard, crea la sesión "default" y escanea el QR
+# con el WhatsApp del número que enviará los mensajes (mejor uno dedicado).
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    environment:
+      - WAHA_API_KEY=${WAHA_API_KEY}            # el mismo valor va en CrediTrack y afdeveloper
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD}
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - TZ=America/Bogota
+    volumes:
+      - waha_sessions:/app/.sessions             # sin esto, cada despliegue pide escanear el QR otra vez
+volumes:
+  waha_sessions:
