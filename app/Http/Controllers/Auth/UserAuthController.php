@@ -6,39 +6,32 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class UserAuthController extends Controller
 {
     public function register(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6',
-            'phone' => 'nullable|string',
-            'address' => 'nullable|string',
+        abort_unless(config('creditrack.registration_enabled'), 403, 'El registro está cerrado. Pide acceso al administrador.');
+
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'email' => 'required|email|max:150|unique:users',
+            'password' => 'required|string|min:8',
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:255',
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'phone' => $request->phone,
-            'address' => $request->address,
-        ]);
+        $user = User::create($data);
 
-        $token = $user->createToken('user_token')->plainTextToken;
-
-        return response()->json(['token' => $token, 'user' => $user]);
+        return response()->json([
+            'token' => $user->createToken('user_token', ['lender'])->plainTextToken,
+            'user' => $user,
+        ], 201);
     }
 
     public function login(Request $request)
-    {   
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
+    {
+        $request->validate(['email' => 'required|email', 'password' => 'required']);
 
         $user = User::where('email', $request->email)->first();
 
@@ -46,14 +39,16 @@ class UserAuthController extends Controller
             return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
 
-        if ( $user->status === 'inactive') {
+        if (! $user->isActive()) {
             return response()->json(['message' => 'Usuario inactivo. Contacta al administrador.'], 403);
         }
 
         $user->tokens()->delete();
-        $token = $user->createToken('user_token')->plainTextToken;
 
-        return response()->json(['token' => $token, 'user' => $user]);  
+        return response()->json([
+            'token' => $user->createToken('user_token', ['lender'])->plainTextToken,
+            'user' => $user,
+        ]);
     }
 
     public function profile(Request $request)
@@ -63,9 +58,8 @@ class UserAuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->tokens()->delete();
-        //$request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
+
         return response()->json(['message' => 'Sesión cerrada correctamente']);
     }
 }
-

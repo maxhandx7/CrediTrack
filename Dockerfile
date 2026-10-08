@@ -1,70 +1,28 @@
-# ---------- STAGE 1: BUILD FRONTEND ----------
-FROM node:18 AS node_builder
-
+# ── 1) Frontend React (Vite) ─────────────────────────────────
+FROM node:22-alpine AS frontend
 WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY resources ./resources
+COPY vite.config.js ./
 RUN npm run build
 
+# ── 2) Laravel 13 + Nginx + cola + scheduler ─────────────────
+FROM webdevops/php-nginx:8.4
+ENV WEB_DOCUMENT_ROOT=/app/public \
+    PHP_DATE_TIMEZONE=America/Bogota \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0
+WORKDIR /app
 
-# ---------- STAGE 2: PHP + NGINX ----------
-FROM php:8.2-fpm
-
-# Instalar dependencias necesarias
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    zip \
-    unzip \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    nginx \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
-    && apt-get clean
-
-# Instalar Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-# Configurar directorio
-WORKDIR /var/www
-
-# Copiar proyecto
+COPY composer.json composer.lock* ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
 COPY . .
+COPY --from=frontend /app/public/build ./public/build
+RUN composer dump-autoload --optimize --no-dev \
+    && chown -R application:application storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-# Copiar build de Vite
-COPY --from=node_builder /app/public/build ./public/build
-
-# Instalar dependencias PHP
-RUN composer install --no-dev --optimize-autoloader
-
-# ... (después de composer install)
-
-# Asegurar que el directorio de logs existe antes de cambiar dueños
-RUN mkdir -p /var/www/storage/logs /var/www/storage/framework/sessions /var/www/storage/framework/views /var/www/storage/framework/cache
-
-# Cambiar el dueño de TODO el proyecto a www-data (el usuario de PHP-FPM y Nginx)
-RUN chown -R www-data:www-data /var/www
-
-# Aplicar permisos específicos
-RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-# Eliminar config default de nginx
-RUN rm -f /etc/nginx/sites-enabled/default
-
-# Configurar PHP-FPM para escuchar en puerto 9000
-RUN sed -i 's|listen = .*|listen = 9000|' /usr/local/etc/php-fpm.d/www.conf
-
-# Copiar config nginx
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-
+COPY docker/supervisor-laravel.conf /opt/docker/etc/supervisor.d/laravel.conf
+COPY docker/entrypoint-laravel.sh /opt/docker/provision/entrypoint.d/30-laravel.sh
+RUN chmod +x /opt/docker/provision/entrypoint.d/30-laravel.sh
 EXPOSE 80
-
-# Crear el archivo de log y dar permiso explícito
-RUN touch /var/www/storage/logs/laravel.log && chmod 664 /var/www/storage/logs/laravel.log && chown www-data:www-data /var/www/storage/logs/laravel.log
-
-CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]

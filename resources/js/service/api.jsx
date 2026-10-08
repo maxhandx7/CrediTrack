@@ -26,6 +26,11 @@ export const register = async (userData, type = 'user') => {
 };
 
 
+// Acceso de clientes en dos pasos: cédula → código por WhatsApp
+export const requestClientCode = async (document) => api.post('/auth/client/request-code', { document });
+export const verifyClientCode = async (document, code) => api.post('/auth/client/verify', { document, code });
+export const getClientPortalLoans = async () => api.get('/client/loans');
+
 export const getClients = async () => api.get('/clients');
 export const getLoans = async () => api.get('/loans');
 export const getPayments = async () => api.get('/payments');

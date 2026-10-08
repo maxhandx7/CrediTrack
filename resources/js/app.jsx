@@ -13,6 +13,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Prueba from './pages/Prueba'
 import LoginClient from './pages/LoginClient'
+import ClientDashboard from './pages/ClientDashboard'
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="register" element={<Register />} />
         <Route path="prueba" element={<Prueba />} />
         <Route path="/login-client" element={<LoginClient />} />
+        <Route path="/dashboard-client" element={<ClientDashboard />} />
 
         {/* 🔒 Rutas protegidas */}
         <Route element={<PrivateRoute />}>

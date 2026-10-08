@@ -3,81 +3,91 @@
 namespace App\Http\Controllers;
 
 use App\Models\LoanSchedule;
-use App\Models\Loan;
+use App\Services\LoanLedger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * Las cuotas las genera el sistema y su estado lo decide el libro contable
+ * (según los pagos). Aquí solo se consultan y se puede reprogramar una fecha.
+ */
 class LoanScheduleController extends Controller
 {
-    public function index()
-    {
-        $schedules = LoanSchedule::whereHas('loan', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->with('loan.client')->orderBy('scheduled_date')->get();
+    public function __construct(private LoanLedger $ledger) {}
 
-        return response()->json($schedules);
+    private function query(Request $request)
+    {
+        return LoanSchedule::whereHas('loan', fn ($q) => $q->where('user_id', $request->user()->id));
     }
 
+    public function index(Request $request)
+    {
+        return response()->json($this->query($request)->with('loan.client')->orderBy('scheduled_date')->get());
+    }
+
+    public function show(Request $request, int $id)
+    {
+        return response()->json($this->query($request)->with('loan.client')->findOrFail($id));
+    }
+
+    /** Cargo adicional (ej. mora): agrega una cuota y suma su valor al total del préstamo. */
     public function store(Request $request)
     {
-        $request->validate([
-            'loan_id' => 'required|exists:loans,id',
+        $data = $request->validate([
+            'loan_id' => 'required|integer',
             'scheduled_date' => 'required|date',
-            'amount_due' => 'required|numeric|min:0',
+            'amount_due' => 'required|numeric|min:1',
         ]);
+        $loan = $request->user()->loans()->findOrFail($data['loan_id']);
 
-    
-        $loan = Loan::where('user_id', Auth::id())->findOrFail($request->loan_id);
+        $schedule = DB::transaction(function () use ($loan, $data) {
+            $schedule = $loan->schedules()->create(['scheduled_date' => $data['scheduled_date'], 'amount_due' => $data['amount_due']]);
+            $loan->forceFill([
+                'total_amount' => round((float) $loan->total_amount + (float) $data['amount_due'], 2),
+                'installments_count' => $loan->installments_count + 1,
+            ])->save();
+            $this->ledger->recalculate($loan);
 
-        $schedule = LoanSchedule::create([
-            'loan_id' => $loan->id,
-            'scheduled_date' => $request->scheduled_date,
-            'amount_due' => $request->amount_due,
-            'status' => 'pendiente',
-        ]);
+            return $schedule->fresh();
+        });
 
-        return response()->json([
-            'message' => 'Cuota programada correctamente',
-            'schedule' => $schedule,
-        ], 201);
+        return response()->json(['message' => 'Cargo agregado al préstamo', 'schedule' => $schedule], 201);
     }
 
-    public function show($id)
+    /**
+     * Solo se reprograma la fecha. El estado lo decide el libro contable según los pagos;
+     * si el frontend viejo manda "status" se ignora en vez de fallar.
+     */
+    public function update(Request $request, int $id)
     {
-        $schedule = LoanSchedule::whereHas('loan', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->with('loan.client')->findOrFail($id);
+        $schedule = $this->query($request)->findOrFail($id);
+        $data = $request->validate(['scheduled_date' => 'sometimes|date']);
 
-        return response()->json($schedule);
+        if ($data !== []) {
+            $schedule->update($data);
+            $this->ledger->recalculate($schedule->loan);
+        }
+
+        return response()->json(['message' => 'Cuota actualizada correctamente', 'schedule' => $schedule->fresh()]);
     }
 
-    public function update(Request $request, $id)
+    public function destroy(Request $request, int $id)
     {
-        $schedule = LoanSchedule::whereHas('loan', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->findOrFail($id);
+        $schedule = $this->query($request)->findOrFail($id);
 
-        $request->validate([
-            'scheduled_date' => 'nullable|date',
-            'amount_due' => 'nullable|numeric|min:0',
-            'status' => 'nullable|in:pendiente,pagado,atrasado',
-        ]);
+        if ((float) $schedule->amount_paid > 0) {
+            return response()->json(['message' => 'La cuota ya tiene abonos y no se puede eliminar.'], 422);
+        }
 
-        $schedule->update($request->only(['scheduled_date', 'amount_due', 'status']));
-
-        return response()->json([
-            'message' => 'Cronograma actualizado correctamente',
-            'schedule' => $schedule,
-        ]);
-    }
-
-    public function destroy($id)
-    {
-        $schedule = LoanSchedule::whereHas('loan', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->findOrFail($id);
-
-        $schedule->delete();
+        DB::transaction(function () use ($schedule) {
+            $loan = $schedule->loan;
+            $schedule->delete();
+            $loan->forceFill([
+                'total_amount' => max(0, round((float) $loan->total_amount - (float) $schedule->amount_due, 2)),
+                'installments_count' => max(0, $loan->installments_count - 1),
+            ])->save();
+            $this->ledger->recalculate($loan);
+        });
 
         return response()->json(['message' => 'Cuota eliminada correctamente']);
     }

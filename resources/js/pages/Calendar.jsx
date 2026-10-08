@@ -95,7 +95,7 @@ const Calendar = () => {
   const eventStyleGetter = (event) => {
     let backgroundColor = "#007bff";
     if (event.status === "pagado") backgroundColor = "#28a745";
-    if (event.status === "atrasado") backgroundColor = "#dc3545";
+    if (event.status === "vencido" || event.status === "atrasado") backgroundColor = "#dc3545";
     if (event.status === "pendiente") backgroundColor = "#ffc107";
 
     return {

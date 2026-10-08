@@ -39,26 +39,10 @@ const Payments = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // 1️⃣ Registrar el pago
+      // El servidor reparte el abono entre las cuotas y actualiza el estado del préstamo.
       await api.post("/payments", formData);
 
-      // 2️⃣ Marcar la cuota como pagada
-      await api.put(`/schedules/${formData.schedule_id}`, {
-        status: "pagado",
-      });
-
-      // 3️⃣ Verificar si todas las cuotas del préstamo están pagadas
-      const { data: loanSchedules } = await api.get("/schedules");
-      const loanSpecific = loanSchedules.filter(
-        (s) => s.loan_id === parseInt(formData.loan_id)
-      );
-      const allPaid = loanSpecific.every((s) => s.status === "pagado");
-
-      if (allPaid) {
-        await api.put(`/loans/${formData.loan_id}`, { status: "pagado" });
-      }
-
-      // 4️⃣ Refrescar datos
+      // Refrescar datos
       await fetchAllData();
 
       setShowModal(false);
@@ -71,7 +55,7 @@ const Payments = () => {
       });
     } catch (error) {
       console.error("Error al registrar pago:", error);
-      alert("No se pudo registrar el pago.");
+      alert(error.response?.data?.message || "No se pudo registrar el pago.");
     }
   };
 

@@ -34,14 +34,14 @@
     <!-- Structured Data -->
     <script type="application/ld+json">
     {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
+        "@@context": "https://schema.org",
+        "@@type": "WebApplication",
         "name": "Sistema de Gestión Académica",
         "description": "Aplicación telemática para gestión de estudiantes y notas",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "Web Browser",
         "author": {
-            "@type": "Person",
+            "@@type": "Person",
             "name": "Alan Carabali"
         }
     }
