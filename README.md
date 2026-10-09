@@ -1,4 +1,44 @@
-# CrediTrack v3
+# CrediTrack v4
+
+Gestión de préstamos para prestamistas independientes: cartera, cobranza, recordatorios por WhatsApp y portal para los clientes.
+**Stack:** Laravel 13 · Filament 5 · dompdf · WAHA (WhatsApp) · Docker / Coolify
+
+## Qué trae v4
+
+**Panel del prestamista (`/admin`, Filament)**
+- **Resumen:** por cobrar, capital en la calle, mora (en $ y %), recaudado del mes contra lo esperado, intereses cobrados, gráfica de 6 meses y los préstamos con mayor mora.
+- **Préstamos:** simulación en vivo al crearlos (cuotas, total y ganancia), ficha con cuotas, pagos y promesas, y estas acciones:
+  - **Registrar pago** con medio de pago, referencia, foto del comprobante y recibo por WhatsApp.
+  - **Promesa de pago**: ese día se le recuerda al cliente, y mientras la promesa esté vigente no recibe avisos de atraso.
+  - **Reestructurar**: reorganiza el saldo en cuotas nuevas y conserva el historial pagado. Muestra el plan antes de confirmar.
+  - **Estado de cuenta en PDF**, que también se puede enviar por WhatsApp.
+  - Mover la fecha de una cuota, perdonar recargos por mora, cancelar o reactivar el préstamo.
+- **Clientes:** calificación de cumplimiento (Excelente / Bueno / Regular / Riesgoso según el % de cuotas pagadas a tiempo), cupo de crédito, codeudor, documentos e historial de los WhatsApp enviados.
+- **Bandeja de cobro:** lo que vence hoy y lo vencido, con botones para registrar el pago, enviar un recordatorio, registrar una promesa, llamar o abrir el chat.
+- **Pagos:** recibos `RC-0001…`. Un pago **se anula con motivo**: queda en el historial pero deja de contar.
+- **Simulador:** el plan completo antes de prestar, y un botón para crear el préstamo con esos datos.
+- **Configuración:** nombre del negocio, mora automática (% y días de gracia), **plantillas editables** de los WhatsApp y webhook hacia afdeveloper.
+- **Bitácora:** quién creó, editó o borró cada préstamo, pago o cliente.
+- **Multi-prestamista:** cada usuario ve solo lo suyo. El administrador gestiona los prestamistas.
+
+**Portal del cliente (`/mi-cuenta`)**: entra con cédula + código por WhatsApp y ve saldo, progreso, próxima cuota, cuotas, pagos y recibos, estado de cuenta y un botón para escribirle al prestamista. Está diseñado primero para el celular.
+
+**Mora automática** (opcional, por prestamista): recargo de un % sobre la cuota vencida, **una sola vez por cuota**, después de los días de gracia. Se puede perdonar.
+
+> El frontend en React se retiró: el panel y el portal se sirven con Laravel y no hace falta Node para construir la imagen. La API (`/api/*`) se conserva por si se hace una app móvil.
+
+## Actualizar desde v3
+
+1. **Backup de la base de datos.**
+2. `composer install && php artisan migrate`. La migración `creditrack_v4` agrega columnas y tablas, numera los recibos existentes y no borra nada.
+3. Entra a `/admin` con tu usuario de siempre. Si eres el dueño, hazte administrador:
+   `php artisan tinker --execute="App\\Models\\User::where('email','TU_CORREO')->update(['role'=>'admin']);"`
+4. Ve a **Configuración**: nombre del negocio, tu WhatsApp, mora y plantillas.
+5. Tus clientes ahora entran por **`/mi-cuenta`** (el enlace viejo `/login-client` redirige solo).
+
+---
+
+# Historial: v3
 
 Gestión de préstamos, cuotas y cobros con recordatorios por WhatsApp.
 **Stack:** Laravel 13 · Sanctum 4 · React 18 (Vite) · WAHA (WhatsApp) · Docker / Coolify

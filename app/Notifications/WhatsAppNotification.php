@@ -20,6 +20,12 @@ abstract class WhatsAppNotification extends Notification implements ShouldQueue
 
     abstract public function toWaha(object $notifiable): string;
 
+    /** Préstamo relacionado, para el historial de mensajes del cliente. */
+    public function loanId(): ?int
+    {
+        return null;
+    }
+
     public function via(object $notifiable): array
     {
         return app(WahaClient::class)->enabled() ? [WahaChannel::class] : [];

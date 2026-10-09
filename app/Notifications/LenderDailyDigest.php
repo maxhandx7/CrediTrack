@@ -20,6 +20,10 @@ class LenderDailyDigest extends WhatsAppNotification
                 .(count($s['overdue_clients']) > 8 ? ' y más.' : '.')."\n";
         }
 
+        if (! empty($s['broken_promises'])) {
+            $text .= "\n⚠️ Incumplieron su promesa de pago: ".implode(', ', $s['broken_promises']).".\n";
+        }
+
         return $text."\nLos clientes ya recibieron su recordatorio automático.";
     }
 }

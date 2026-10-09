@@ -30,6 +30,7 @@ class DemoSeeder extends Seeder
             'name' => 'Alan Demo',
             'password' => 'password',
             'phone' => '3000000000',
+            'settings' => ['business_name' => 'Créditos Demo', 'late_fee' => ['enabled' => true, 'percent' => 5, 'grace_days' => 3]],
         ]);
         $lender->forceFill(['status' => 'active', 'role' => 'admin'])->save();
         $lender->clients()->delete(); // cascada: préstamos, cuotas y pagos del demo
@@ -66,14 +67,13 @@ class DemoSeeder extends Seeder
         // Vence mañana: para probar el recordatorio con --dry-run.
         $loan($clients[2], 200000, $d('-1 day'), $d('+1 day'), 'diaria');
 
-        // Token de cliente para probar el portal sin WhatsApp (ver instrucciones abajo).
-        $clients[0]->tokens()->delete();
-        $clientToken = $clients[0]->createToken('client_token', ['client'])->plainTextToken;
 
-        $this->command->info('Prestamista →  demo@creditrack.test  /  password');
+        \App\Models\PaymentPromise::create(['user_id' => $lender->id, 'loan_id' => $clients[1]->loans()->first()->id,
+            'promised_date' => today()->addDays(2), 'amount' => 100000, 'notes' => 'Le pagan el viernes']);
+
+        $this->command->info('Panel → /admin  ·  demo@creditrack.test  /  password');
         $this->command->newLine();
-        $this->command->info('Portal de cliente sin WhatsApp (Pedro Gómez): abre /login-client, F12 → Consola y pega:');
-        $this->command->line("  localStorage.setItem('token', '{$clientToken}'); localStorage.setItem('client', JSON.stringify({name: 'Pedro Gómez'})); location.href = '/dashboard-client';");
+        $this->command->info('Portal de clientes → /mi-cuenta (cédula 1001, código por WhatsApp).');
         $this->command->newLine();
         $this->command->info('Recordatorios que saldrían hoy: php artisan creditrack:collections --dry-run');
     }

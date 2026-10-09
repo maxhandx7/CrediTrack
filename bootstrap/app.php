@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*'); // Coolify / Traefik
+        // Sin sesión: los deudores van a su portal; los prestamistas al panel.
+        $middleware->redirectGuestsTo(fn ($request) => $request->is('mi-cuenta*') ? route('portal.login') : '/admin/login');
         $middleware->alias([
             'lender' => EnsureLender::class,
             'client' => EnsureClient::class,

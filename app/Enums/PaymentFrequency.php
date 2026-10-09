@@ -3,8 +3,9 @@
 namespace App\Enums;
 
 use Carbon\CarbonInterface;
+use Filament\Support\Contracts\HasLabel;
 
-enum PaymentFrequency: string
+enum PaymentFrequency: string implements HasLabel
 {
     case Daily = 'diaria';
     case Weekly = 'semanal';
@@ -34,5 +35,15 @@ enum PaymentFrequency: string
         };
 
         return max($periods, 1);
+    }
+
+    public function getLabel(): string
+    {
+        return match ($this) {
+            self::Daily => 'Diaria',
+            self::Weekly => 'Semanal',
+            self::Biweekly => 'Quincenal',
+            self::Monthly => 'Mensual',
+        };
     }
 }

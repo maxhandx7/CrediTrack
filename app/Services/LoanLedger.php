@@ -22,6 +22,7 @@ class LoanLedger
     {
         return DB::transaction(function () use ($loan) {
             $loan->load(['schedules', 'payments' => fn ($q) => $q->orderBy('date')->orderBy('id')]);
+            $payments = $loan->payments->whereNull('voided_at');
 
             $schedules = $loan->schedules->values();
             $total = (float) $loan->total_amount;
@@ -30,7 +31,7 @@ class LoanLedger
             $credit = [];   // índice de cuota => abonado
             $paidOn = [];   // índice de cuota => fecha en que quedó cubierta
 
-            foreach ($loan->payments as $payment) {
+            foreach ($payments as $payment) {
                 $available = (float) $payment->amount;
                 $paidSoFar += $available;
 
