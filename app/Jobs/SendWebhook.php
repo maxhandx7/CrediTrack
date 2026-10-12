@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\User;
+use App\Models\Company;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,7 +19,7 @@ class SendWebhook implements ShouldQueue
 
     public int $tries = 6;
 
-    public function __construct(public int $userId, public array $payload) {}
+    public function __construct(public int $companyId, public array $payload) {}
 
     public function backoff(): array
     {
@@ -28,8 +28,8 @@ class SendWebhook implements ShouldQueue
 
     public function handle(): void
     {
-        $user = User::find($this->userId);
-        if (! $user?->webhook_url || ! $user->webhook_secret) {
+        $user = Company::find($this->companyId);
+        if (! $user?->webhook_url || ! $user->webhook_secret || ! $user->hasFeature('webhook')) {
             return;
         }
 

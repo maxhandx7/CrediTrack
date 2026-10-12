@@ -12,19 +12,19 @@ class WebhookDispatcher
 {
     public function loanCreated(Loan $loan): void
     {
-        $this->send($loan->user_id, 'loan.created', $this->loanData($loan));
+        $this->send($loan->company_id, 'loan.created', $this->loanData($loan));
     }
 
     public function loanDeleted(Loan $loan): void
     {
-        $this->send($loan->user_id, 'loan.deleted', ['id' => $loan->id]);
+        $this->send($loan->company_id, 'loan.deleted', ['id' => $loan->id]);
     }
 
     public function paymentCreated(Payment $payment): void
     {
         $payment->loadMissing('loan.client');
 
-        $this->send($payment->user_id, 'payment.created', [
+        $this->send($payment->company_id, 'payment.created', [
             'id' => $payment->id,
             'amount' => (float) $payment->amount,
             'date' => $payment->date->toDateString(),
@@ -36,7 +36,7 @@ class WebhookDispatcher
 
     public function paymentDeleted(Payment $payment): void
     {
-        $this->send($payment->user_id, 'payment.deleted', ['id' => $payment->id, 'loan_id' => $payment->loan_id]);
+        $this->send($payment->company_id, 'payment.deleted', ['id' => $payment->id, 'loan_id' => $payment->loan_id]);
     }
 
     private function loanData(Loan $loan): array
@@ -58,9 +58,13 @@ class WebhookDispatcher
         ];
     }
 
-    private function send(int $userId, string $event, array $data): void
+    private function send(?int $companyId, string $event, array $data): void
     {
-        SendWebhook::dispatch($userId, [
+        if (! $companyId) {
+            return;
+        }
+
+        SendWebhook::dispatch($companyId, [
             'id' => (string) Str::uuid(),
             'event' => $event,
             'created_at' => now()->toIso8601String(),

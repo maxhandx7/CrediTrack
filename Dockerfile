@@ -1,25 +1,18 @@
-# ── 1) Frontend React (Vite) ─────────────────────────────────
-FROM node:22-alpine AS frontend
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY resources ./resources
-COPY vite.config.js ./
-RUN npm run build
-
-# ── 2) Laravel 13 + Nginx + cola + scheduler ─────────────────
+# CrediTrack — Laravel 13 + Filament 5. Nginx + PHP-FPM + cola + scheduler (supervisor).
 FROM webdevops/php-nginx:8.4
 ENV WEB_DOCUMENT_ROOT=/app/public \
     PHP_DATE_TIMEZONE=America/Bogota \
-    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    PHP_UPLOAD_MAX_FILESIZE=10M \
+    PHP_POST_MAX_SIZE=12M
 WORKDIR /app
 
 COPY composer.json composer.lock* ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
 COPY . .
-COPY --from=frontend /app/public/build ./public/build
 RUN composer dump-autoload --optimize --no-dev \
-    && chown -R application:application storage bootstrap/cache \
+    && php artisan filament:assets \
+    && chown -R application:application storage bootstrap/cache public \
     && chmod -R 775 storage bootstrap/cache
 
 COPY docker/supervisor-laravel.conf /opt/docker/etc/supervisor.d/laravel.conf

@@ -8,9 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LoanSchedule extends Model
 {
-    protected $fillable = ['loan_id', 'scheduled_date', 'amount_due', 'amount_paid', 'paid_at', 'status'];
+    protected $fillable = ['loan_id', 'kind', 'parent_id', 'scheduled_date', 'amount_due', 'amount_paid', 'paid_at', 'status', 'note'];
 
-    protected $attributes = ['status' => 'pendiente', 'amount_paid' => 0];
+    protected $attributes = ['status' => 'pendiente', 'amount_paid' => 0, 'kind' => 'installment'];
+
+    public function isFee(): bool
+    {
+        return $this->kind === 'fee';
+    }
+
+    /** Recargo por mora generado para esta cuota (si existe). */
+    public function fee(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(self::class, 'parent_id')->where('kind', 'fee');
+    }
 
     protected $appends = ['amount_pending'];
 

@@ -2,7 +2,10 @@
 
 use Illuminate\Support\Facades\Schedule;
 
-// Cobranza: estados al día + recordatorios por WhatsApp. A las 8 a. m., hora de Colombia.
-Schedule::command('creditrack:collections')->dailyAt('08:00')->withoutOverlapping();
+// Cobranza: cada hora; cada empresa envía a la hora que eligió (por defecto 8 a. m.).
+Schedule::command('creditrack:collections')->hourlyAt(0)->withoutOverlapping();
+
+// Suscripciones: marca vencidas las pruebas y los pagos que expiraron.
+Schedule::command('saas:subscriptions')->dailyAt('00:10');
 
 Schedule::command('queue:prune-failed --hours=720')->weekly();
