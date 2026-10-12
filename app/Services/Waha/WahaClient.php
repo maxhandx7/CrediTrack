@@ -12,7 +12,7 @@ class WahaClient
         return (bool) config('services.waha.enabled') && filled(config('services.waha.url'));
     }
 
-    public function sendText(string $phone, string $text): void
+    public function sendText(string $phone, string $text, ?string $session = null): void
     {
         if (! $this->enabled()) {
             return;
@@ -22,7 +22,7 @@ class WahaClient
             ->acceptJson()
             ->timeout(20)
             ->post(config('services.waha.url').'/api/sendText', [
-                'session' => config('services.waha.session'),
+                'session' => $session ?: config('services.waha.session'),
                 'chatId' => static::chatId($phone),
                 'text' => $text,
             ])
